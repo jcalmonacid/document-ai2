@@ -1,0 +1,31 @@
+[project]
+name = "document-ai-pdf-prototype"
+version = "1.7.0"
+description = "Sistema automatizado que procesa documentos PDF municipales/resoluciones administrativas, extrae metadatos clave utilizando IA, clasifica automáticamente por prefijos y genera reportes estructurados en Excel."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.2.6",
+    "langchain-google-genai>=4.2.0",
+    "langchain-openai>=1.1.7",
+    "langchain-ollama>=0.2.0",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
+    "pdf2image>=1.17.0",
+    "pillow>=12.1.0",
+    "pydantic-settings>=2.12.0",
+    "pypdf2>=3.0.1",
+    "pytesseract>=0.3.13",
+    "python-dotenv>=1.2.1",
+    "streamlit>=1.53.0",
+    "supabase>=2.27.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "rich>=14.3.2",
+    "semver>=3.0.4",
+    "typer>=0.24.1",
+]

@@ -1,0 +1,98 @@
+# docker-compose.portainer.yml — Para pegar en el EDITOR WEB de Portainer
+# (la app NO se construye aquí; usa la imagen 'document-ai-prototype:local' ya creada en el host)
+
+services:
+  # ===========================================================
+  # Servicio de IA local. Reemplaza a Gemini: nada sale a internet.
+  # ===========================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"          # API local de Ollama
+    volumes:
+      - ollama_data:/root/.ollama   # Persiste los modelos descargados
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    # --- GPU NVIDIA (OPCIONAL) ---
+    # Descomenta SOLO si la VM tiene GPU NVIDIA con nvidia-container-toolkit:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ===========================================================
+  # Descarga AUTOMÁTICA del modelo (se ejecuta una vez y termina).
+  # Evita tener que hacer 'ollama pull' a mano en Portainer.
+  # ===========================================================
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_MODEL:-qwen2.5:7b-instruct} && echo '✅ Modelo descargado y listo'"]
+    restart: "no"
+
+  # ===========================================================
+  # Aplicación Streamlit
+  # ===========================================================
+  document-ai-app:
+    # MÉTODO EDITOR WEB: usa una imagen ya construida en el host.
+    # (Constrúyela antes con: docker compose build  →  crea 'document-ai-prototype:local')
+    image: document-ai-prototype:local
+    container_name: document-ai-pdf
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    ports:
+      - "8501:8501"
+    environment:
+      # --- Motor de IA: LOCAL ---
+      - AI_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      - OLLAMA_NUM_CTX=${OLLAMA_NUM_CTX:-8192}
+
+      # --- OCR (rutas Linux dentro del contenedor) ---
+      - TESSERACT_PATH=/usr/bin/tesseract
+      - POPPLER_PATH=/usr/bin
+
+      # --- Generales ---
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_RETRIES=${MAX_RETRIES:-2}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-120}
+
+      # --- Supabase (almacenamiento de PDFs) ---
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET:-documentos}
+
+      # --- Estabilidad de Streamlit ---
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+      - STREAMLIT_SERVER_HEADLESS=true
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  ollama_data:

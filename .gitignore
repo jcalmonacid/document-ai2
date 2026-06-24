@@ -1,0 +1,69 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.env/
+.env.bak/
+.venv/
+
+# =========================
+# Environment variables / Secrets
+# =========================
+.env
+*.env
+
+# =========================
+# Streamlit
+# =========================
+.streamlit/secrets.toml
+
+# =========================
+# Jupyter / Notebooks
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDEs / Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Data files (opcional)
+# =========================
+data/raw/
+data/tmp/
+
+# =========================
+# PDFs (opcional según política)
+# =========================
+*.pdf
+
+# =========================
+# Test & coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/

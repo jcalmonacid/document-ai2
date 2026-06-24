@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+
+# Environment files (se pasarán como secretos)
+.env
+*.env
+
+# Git
+.git/
+.gitignore
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# Test & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data files
+data/raw/
+data/tmp/
+
+# PDFs locales (no necesarios en imagen)
+*.pdf
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Documentation
+README.md
+.github/
+docs/
+.agent/
+.agents/
