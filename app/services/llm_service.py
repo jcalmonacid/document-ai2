@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from typing import cast, Optional
 from app.core.config import settings
@@ -10,11 +11,34 @@ logger = logging.getLogger(__name__)
 
 PROVEEDOR = settings.AI_PROVIDER.lower().strip()
 
-_RESULTADO_ERROR = DatosExtraidosLLM(
-    nombre_norma_opcional=None,
-    contenido_resolutivo='⚠️ ERROR: No se pudo extraer la información. Revise el motor de IA, el modelo cargado o el documento.',
-    resumen_ejecutivo='No disponible.',
+
+class ExtraccionIAError(Exception):
+    """Se lanza cuando la extracción con IA falla o produce un resultado inválido.
+    Permite que el documento se contabilice como ERROR (no como éxito silencioso)."""
+
+
+# Palabras de la fórmula de cierre. Si el contenido resolutivo se reduce a esto,
+# la extracción capturó el final del documento (texto truncado) y NO es válida.
+_RE_SOLO_CIERRE = re.compile(
+    r'REG[IÍ]STRESE|COMUN[IÍ]QUESE|C[UÚ]MPLASE|ARCH[IÍ]VESE|PUBL[IÍ]QUESE',
+    re.IGNORECASE,
 )
+
+
+def _validar_resultado(resultado: DatosExtraidosLLM) -> DatosExtraidosLLM:
+    """Verifica que la extracción sea utilizable. Lanza ExtraccionIAError si no."""
+    contenido = (resultado.contenido_resolutivo or '').strip()
+    if len(contenido) < 15:
+        raise ExtraccionIAError('El contenido resolutivo extraído está vacío o es demasiado corto.')
+    # Si al quitar las palabras de cierre no queda contenido sustantivo,
+    # la IA capturó solo "REGÍSTRESE, COMUNÍQUESE, CÚMPLASE Y ARCHÍVESE".
+    sin_cierre = _RE_SOLO_CIERRE.sub('', contenido).strip(' .,;:-y Y')
+    if len(sin_cierre) < 15:
+        raise ExtraccionIAError(
+            'La extracción capturó solo la fórmula de cierre (REGÍSTRESE/COMUNÍQUESE...). '
+            'Probable documento truncado o mal extraído; revise manualmente.'
+        )
+    return resultado
 
 
 def _aplicar_salida_estructurada(modelo_base):
@@ -41,6 +65,7 @@ def _get_cadena_ollama():
             base_url=settings.OLLAMA_BASE_URL,
             temperature=0.0,
             num_ctx=settings.OLLAMA_NUM_CTX,
+            keep_alive=-1,
         )
         modelo_estructurado = _aplicar_salida_estructurada(modelo_base)
         _cadena_ollama = crear_prompt_extraccion_documentos() | modelo_estructurado
@@ -58,22 +83,28 @@ def _extraer_con_ollama(texto_documento: str) -> DatosExtraidosLLM:
             )
             cadena = _get_cadena_ollama()
             resultado = cast(DatosExtraidosLLM, cadena.invoke({'text': texto_documento}))
+            resultado = _validar_resultado(resultado)
             logger.info('✅ Extracción local exitosa.')
             return resultado
+        except ExtraccionIAError as e:
+            # Resultado inválido pero determinista (temperatura 0): reintentar no ayuda.
+            logger.error(f'❌ Extracción inválida: {e}')
+            raise
         except Exception as e:
             ultimo_error = e
             msg = str(e).lower()
             if 'not found' in msg or 'no such model' in msg or 'pull' in msg:
                 logger.error(
                     f"❌ El modelo '{settings.OLLAMA_MODEL}' no está cargado en Ollama. "
-                    f"Ejecute: docker compose exec ollama ollama pull {settings.OLLAMA_MODEL}"
+                    f'Ejecute: docker compose exec ollama ollama pull {settings.OLLAMA_MODEL}'
                 )
             else:
                 logger.warning(f'⚠️ Error en Ollama (intento {intento}): {e}')
             if intento < max_intentos:
                 time.sleep(2)
-    logger.error(f'❌ Falló la extracción local tras {max_intentos} intentos. Último error: {ultimo_error}')
-    return _RESULTADO_ERROR
+    raise ExtraccionIAError(
+        f'Falló la extracción local tras {max_intentos} intentos. Último error: {ultimo_error}'
+    )
 
 
 # =====================================================================
@@ -123,8 +154,12 @@ def _extraer_con_gemini(texto_documento: str) -> DatosExtraidosLLM:
             logger.info(f'🧠 Gemini (Llave {num_llave}/{max_intentos}) - Analizando {len(texto_documento)} chars...')
             cadena = _get_cadena_gemini(llave_actual)
             resultado = cast(DatosExtraidosLLM, cadena.invoke({'text': texto_documento}))
+            resultado = _validar_resultado(resultado)
             logger.info('✅ Extracción LLM exitosa.')
             return resultado
+        except ExtraccionIAError as e:
+            logger.error(f'❌ Extracción inválida: {e}')
+            raise
         except Exception as e:
             intentos += 1
             error_msg = str(e).lower()
@@ -136,9 +171,8 @@ def _extraer_con_gemini(texto_documento: str) -> DatosExtraidosLLM:
             if intentos < max_intentos:
                 time.sleep(2)
                 continue
-            logger.error('❌ TODAS LAS LLAVES DE RESPALDO SE HAN AGOTADO O FALLARON.')
             break
-    return _RESULTADO_ERROR
+    raise ExtraccionIAError('TODAS LAS LLAVES DE RESPALDO SE HAN AGOTADO O FALLARON.')
 
 
 # =====================================================================

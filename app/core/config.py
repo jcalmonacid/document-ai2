@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = 'INFO'
     MAX_RETRIES: int = 2
     REQUEST_TIMEOUT: int = 120
+    MAX_WORKERS: int = Field(default=2, ge=1, le=8)
 
     # --- OCR ---
     TESSERACT_PATH: Path

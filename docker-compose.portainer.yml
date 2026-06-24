@@ -10,6 +10,10 @@ services:
     container_name: ollama
     ports:
       - "11434:11434"          # API local de Ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=-1
     volumes:
       - ollama_data:/root/.ollama   # Persiste los modelos descargados
     restart: unless-stopped
@@ -74,6 +78,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - MAX_RETRIES=${MAX_RETRIES:-2}
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-120}
+      - MAX_WORKERS=${MAX_WORKERS:-2}
 
       # --- Supabase (almacenamiento de PDFs) ---
       - SUPABASE_URL=${SUPABASE_URL}

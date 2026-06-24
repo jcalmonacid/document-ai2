@@ -1,5 +1,6 @@
 import concurrent.futures
 from app.services.pdf_service import procesar_archivo_pdf
+from app.core.config import settings
 from app.ui.state import ETAPA_RESULTADOS, actualizar_stats, avanzar_etapa
 from app.utils.logger import logger
 import streamlit as st
@@ -16,7 +17,7 @@ def renderizar_processing_section() -> None:
         st.rerun()
         return
     st.subheader('⚡ Procesamiento Concurrente en curso')
-    st.info(f'Procesando {len(archivos)} archivos simultáneamente para mayor velocidad.')
+    st.info(f'Procesando {len(archivos)} archivos ({settings.MAX_WORKERS} en paralelo).')
     progress_bar = st.progress(0)
     progress_text = st.empty()
     resultados = []
@@ -31,7 +32,7 @@ def renderizar_processing_section() -> None:
         except Exception as e:
             logger.error('Error procesando %s: %s', archivo.name, str(e), exc_info=True)
             return {'tipo': 'error', 'archivo': archivo.name, 'error': str(e)}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=settings.MAX_WORKERS) as executor:
         futures = {executor.submit(procesar_un_archivo, arc): arc for arc in archivos}
         completados = 0
         for future in concurrent.futures.as_completed(futures):

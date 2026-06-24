@@ -7,6 +7,7 @@ from app.services.llm_service import extraer_datos_documento
 from app.services.ocr_service import extraer_texto_hibrido
 from app.services.storage_service import subir_archivo_y_obtener_url
 from app.utils.parsers import parsear_metadata_filename
+from app.utils.text_reducer import reducir_texto_resolutivo
 logger = logging.getLogger(__name__)
 
 def extraer_texto_pdf(archivo_pdf: BytesIO) -> str:
@@ -45,7 +46,8 @@ def procesar_archivo_pdf(archivo_pdf: BytesIO, on_step: Optional[Callable[[str],
     url_publica = subir_archivo_y_obtener_url(archivo=archivo_pdf, nombre_archivo=archivo_pdf.name)
     reportar('📖 Extrayendo texto del PDF...')
     texto_extraido = extraer_texto_pdf(archivo_pdf)
+    texto_para_ia = reducir_texto_resolutivo(texto_extraido)
     reportar('🧠 Analizando contenido con IA...')
-    datos_ia = extraer_datos_documento(texto_extraido)
+    datos_ia = extraer_datos_documento(texto_para_ia)
     reportar('✅ Consolidando resultado final...')
     return DocumentoProcesado(**metadata, extraccion=datos_ia, url_archivo=url_publica or 'Error al subir')
